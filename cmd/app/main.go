@@ -44,8 +44,11 @@ func main() {
 
 	tokenStorage := storage.NewTokenStorage(rdb)
 	userStorage := storage.NewUserStorage(db)
+	deliveryStorage := storage.NewDeliveryStorage(db)
 	authService := service.NewAuthService(userStorage, tokenStorage, []byte(cfg.JWTSecret))
+	deliveryService := service.NewDeliveryService(deliveryStorage)
 	authHandler := handler.NewAuthHandler(authService)
+	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 
 	mux := http.NewServeMux()
 
@@ -53,8 +56,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.RegisterHandler)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.LoginHandler)
 	mux.Handle("POST /api/v1/orders", authHandler.AuthMiddleware(authHandler.UserRateLimitMiddleware(http.HandlerFunc(handler.OrdersHandler))))
-	//mux.HandleFunc("POST /api/v1/delivery/select", handler.deliveryHandler)
-	//mux.HandleFunc("GET /api/v1/delivery/status", handler.deliveryHandler)
+	mux.Handle("POST /api/v1/delivery/select", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.SelectDeliveryHandler)))
+	mux.Handle("GET /api/v1/delivery/status", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.CheckStatusDeliveryHandler)))
 
 	log.Printf("Сервер слушает на %s", cfg.Port)
 	if err := http.ListenAndServe(cfg.Port, mux); err != nil {

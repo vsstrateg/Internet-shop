@@ -38,9 +38,9 @@ func NewPostgresDB(ctx context.Context, dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
-func (s *UserStorage) SaveUser(email string, passwordHash []byte) error {
+func (s *UserStorage) SaveUser(ctx context.Context, email string, passwordHash []byte) error {
 	query := `INSERT INTO users (email, password) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING`
-	res, err := s.db.Exec(query, email, passwordHash)
+	res, err := s.db.ExecContext(ctx, query, email, passwordHash)
 	if err != nil {
 		return err
 	}
@@ -55,17 +55,16 @@ func (s *UserStorage) SaveUser(email string, passwordHash []byte) error {
 	return nil
 }
 
-func (s *UserStorage) GetPasswordHash(email string) (string, error) {
+func (s *UserStorage) GetPasswordHash(ctx context.Context, email string) (string, error) {
 	var hash string
 
 	query := `SELECT password FROM users WHERE email = $1`
-	err := s.db.QueryRow(query, email).Scan(&hash)
+	err := s.db.QueryRowContext(ctx, query, email).Scan(&hash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrInvalidCredentials
-		} else {
-			return "", ErrDatabase
 		}
+		return "", ErrDatabase
 	}
 	return hash, nil
 }

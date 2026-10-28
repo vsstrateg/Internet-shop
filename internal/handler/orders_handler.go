@@ -14,10 +14,10 @@ func OrdersHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]any{
 		"status":   "success",
 		"email":    email,
-		"order_id": "258",
+		"order_id": 258,
 	})
 
 }

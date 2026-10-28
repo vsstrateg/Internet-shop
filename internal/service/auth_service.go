@@ -9,8 +9,8 @@ import (
 )
 
 type UserStorage interface {
-	GetPasswordHash(email string) (string, error)
-	SaveUser(email string, passwordHash []byte) error
+	GetPasswordHash(ctx context.Context, email string) (string, error)
+	SaveUser(ctx context.Context, email string, passwordHash []byte) error
 }
 
 type TokenStorage interface {
@@ -40,7 +40,7 @@ func (a *AuthService) Register(ctx context.Context, email string, password strin
 		return "", err
 	}
 
-	if err := a.storage.SaveUser(email, bytes); err != nil {
+	if err := a.storage.SaveUser(ctx, email, bytes); err != nil {
 		return "", err
 	}
 
@@ -55,7 +55,7 @@ func (a *AuthService) Register(ctx context.Context, email string, password strin
 }
 
 func (a *AuthService) Login(ctx context.Context, email string, password string) (string, error) {
-	hash, err := a.storage.GetPasswordHash(email)
+	hash, err := a.storage.GetPasswordHash(ctx, email)
 	if err != nil {
 		return "", err
 	}

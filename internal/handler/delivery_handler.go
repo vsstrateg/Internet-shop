@@ -1,18 +1,21 @@
 package handler
 
 import (
+	"auth-service/internal/storage"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 )
 
 type DeliveryService interface {
-	SelectDelivery(ctx context.Context, orderID string, carrier string) (string, error)
-	CheckStatusDelivery(ctx context.Context, orderID string) (string, error)
+	SelectDelivery(ctx context.Context, orderID int64, carrier string) (string, error)
+	CheckStatusDelivery(ctx context.Context, orderID int64) (string, error)
 }
 
 type DeliveryCred struct {
-	OrderID string `json:"order_id"`
+	OrderID int64  `json:"order_id,string"`
 	Carrier string `json:"carrier"`
 }
 
@@ -33,26 +36,30 @@ func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.R
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
+	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&delcred); err != nil {
 		sendError(w, http.StatusBadRequest, "Invalid JSON format")
 		return
 	}
-	defer r.Body.Close()
 
-	if delcred.OrderID == "" || (delcred.Carrier != "cdek" && delcred.Carrier != "yandex_delivery" && delcred.Carrier != "boxberry") {
+	if delcred.OrderID <= 0 || (delcred.Carrier != "cdek" && delcred.Carrier != "yandex_delivery" && delcred.Carrier != "boxberry") {
 		sendError(w, http.StatusBadRequest, "Неверный ID заказа или Транспортная компания")
 		return
 	}
 
 	status, err := d.delivery.SelectDelivery(r.Context(), delcred.OrderID, delcred.Carrier)
 	if err != nil {
+		if errors.Is(err, storage.ErrDeliveryAlreadyExists) {
+			sendError(w, http.StatusNotFound, "Доставка уже существует по этому заказу")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "Ошибка оформления доставки")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]any{
 		"order_id": delcred.OrderID,
 		"carrier":  delcred.Carrier,
 		"status":   status,
@@ -66,22 +73,26 @@ func (d *DeliveryHandler) CheckStatusDeliveryHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	orderID := r.URL.Query().Get("order_id")
+	orderID, err := strconv.ParseInt(r.URL.Query().Get("order_id"), 10, 64)
 
-	if orderID == "" {
+	if err != nil || orderID <= 0 {
 		sendError(w, http.StatusBadRequest, "Введите номер заказа")
 		return
 	}
 
 	status, err := d.delivery.CheckStatusDelivery(r.Context(), orderID)
 	if err != nil {
+		if errors.Is(err, storage.ErrDeliveryNotFound) {
+			sendError(w, http.StatusNotFound, "Доставка по заказу не найдена")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "Ошибка проверки статуса доставки")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]any{
 		"order_id": orderID,
 		"status":   status,
 	})
