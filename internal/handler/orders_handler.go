@@ -21,7 +21,3 @@ func OrdersHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 }
-
-func deliveryHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("delivery route"))
-}

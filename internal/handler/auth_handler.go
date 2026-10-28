@@ -41,7 +41,7 @@ func setTokenCookie(w http.ResponseWriter, token string) {
 	})
 }
 
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var cred Credentials
 
 	if err := json.NewDecoder(r.Body).Decode(&cred); err != nil {
@@ -75,7 +75,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Регистрация Успешна: %s", cred.Email)
 }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var cred Credentials
 
 	if err := json.NewDecoder(r.Body).Decode(&cred); err != nil {

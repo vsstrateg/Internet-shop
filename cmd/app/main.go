@@ -50,10 +50,11 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/{$}", frontendHandler)
-	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
-	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("POST /api/v1/auth/register", authHandler.RegisterHandler)
+	mux.HandleFunc("POST /api/v1/auth/login", authHandler.LoginHandler)
 	mux.Handle("POST /api/v1/orders", authHandler.AuthMiddleware(authHandler.UserRateLimitMiddleware(http.HandlerFunc(handler.OrdersHandler))))
 	//mux.HandleFunc("POST /api/v1/delivery/select", handler.deliveryHandler)
+	//mux.HandleFunc("GET /api/v1/delivery/status", handler.deliveryHandler)
 
 	log.Printf("Сервер слушает на %s", cfg.Port)
 	if err := http.ListenAndServe(cfg.Port, mux); err != nil {
