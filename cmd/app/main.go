@@ -44,10 +44,15 @@ func main() {
 
 	tokenStorage := storage.NewTokenStorage(rdb)
 	userStorage := storage.NewUserStorage(db)
+	orderStorage := storage.NewOrderStorage(db)
 	deliveryStorage := storage.NewDeliveryStorage(db)
+
 	authService := service.NewAuthService(userStorage, tokenStorage, []byte(cfg.JWTSecret))
+	orderService := service.NewOrderService(orderStorage)
 	deliveryService := service.NewDeliveryService(deliveryStorage)
+
 	authHandler := handler.NewAuthHandler(authService)
+	orderHandler := handler.NewOrderHandler(orderService)
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 
 	mux := http.NewServeMux()
@@ -55,7 +60,7 @@ func main() {
 	mux.HandleFunc("/{$}", frontendHandler)
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.RegisterHandler)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.LoginHandler)
-	mux.Handle("POST /api/v1/orders", authHandler.AuthMiddleware(authHandler.UserRateLimitMiddleware(http.HandlerFunc(handler.OrdersHandler))))
+	mux.Handle("POST /api/v1/orders", authHandler.AuthMiddleware(authHandler.UserRateLimitMiddleware(http.HandlerFunc(orderHandler.CreateOrderHandler))))
 	mux.Handle("POST /api/v1/delivery/select", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.SelectDeliveryHandler)))
 	mux.Handle("GET /api/v1/delivery/status", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.CheckStatusDeliveryHandler)))
 
