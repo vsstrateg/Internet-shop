@@ -10,8 +10,8 @@ import (
 )
 
 type DeliveryService interface {
-	SelectDelivery(ctx context.Context, orderID int64, carrier string) (string, error)
-	CheckStatusDelivery(ctx context.Context, orderID int64) (string, error)
+	SelectDelivery(ctx context.Context, email string, orderID int64, carrier string) (string, error)
+	CheckStatusDelivery(ctx context.Context, email string, orderID int64) (string, error)
 }
 
 type DeliveryCred struct {
@@ -28,6 +28,12 @@ func NewDeliveryHandler(delivery DeliveryService) *DeliveryHandler {
 }
 
 func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.Request) {
+	email, ok := r.Context().Value(UserEmailKey).(string)
+	if !ok || email == "" {
+		sendError(w, http.StatusUnauthorized, "Вы не авторизованы")
+		return
+	}
+
 	var delcred DeliveryCred
 
 	if r.Method != http.MethodPost {
@@ -47,10 +53,18 @@ func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	status, err := d.delivery.SelectDelivery(r.Context(), delcred.OrderID, delcred.Carrier)
+	status, err := d.delivery.SelectDelivery(r.Context(), email, delcred.OrderID, delcred.Carrier)
 	if err != nil {
 		if errors.Is(err, storage.ErrDeliveryAlreadyExists) {
-			sendError(w, http.StatusNotFound, "Доставка уже существует по этому заказу")
+			sendError(w, http.StatusConflict, "Доставка уже существует по этому заказу")
+			return
+		}
+		if errors.Is(err, storage.ErrOrderNotFound) {
+			sendError(w, http.StatusNotFound, "Заказ не найден")
+			return
+		}
+		if errors.Is(err, storage.ErrOrderForbidden) {
+			sendError(w, http.StatusForbidden, "Пожалуйста, выберите свой заказ")
 			return
 		}
 		sendError(w, http.StatusInternalServerError, "Ошибка оформления доставки")
@@ -67,9 +81,14 @@ func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.R
 }
 
 func (d *DeliveryHandler) CheckStatusDeliveryHandler(w http.ResponseWriter, r *http.Request) {
-
 	if r.Method != http.MethodGet {
 		sendError(w, http.StatusMethodNotAllowed, "Разрешен только метод GET")
+		return
+	}
+
+	email, ok := r.Context().Value(UserEmailKey).(string)
+	if !ok || email == "" {
+		sendError(w, http.StatusUnauthorized, "Вы не авторизованы")
 		return
 	}
 
@@ -80,10 +99,14 @@ func (d *DeliveryHandler) CheckStatusDeliveryHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	status, err := d.delivery.CheckStatusDelivery(r.Context(), orderID)
+	status, err := d.delivery.CheckStatusDelivery(r.Context(), email, orderID)
 	if err != nil {
 		if errors.Is(err, storage.ErrDeliveryNotFound) {
 			sendError(w, http.StatusNotFound, "Доставка по заказу не найдена")
+			return
+		}
+		if errors.Is(err, storage.ErrOrderForbidden) {
+			sendError(w, http.StatusForbidden, "Пожалуйста, выберите свой заказ")
 			return
 		}
 		sendError(w, http.StatusInternalServerError, "Ошибка проверки статуса доставки")
