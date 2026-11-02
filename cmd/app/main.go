@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -23,11 +26,11 @@ func main() {
 
 	cfg := config.LoadConfig()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// POSTGRES
-	db, err := storage.NewPostgresDB(ctx, cfg.DBDSN)
+	db, err := storage.NewPostgresDB(initCtx, cfg.DBDSN)
 	if err != nil {
 		log.Fatalf("failed to init postgres: %v", err)
 	}
@@ -39,7 +42,7 @@ func main() {
 	}
 
 	// REDIS
-	rdb, err := storage.NewRedisDB(ctx, cfg.Redis)
+	rdb, err := storage.NewRedisDB(initCtx, cfg.Redis)
 	if err != nil {
 		log.Fatalf("failed to init redis: %v", err)
 	}
@@ -68,8 +71,33 @@ func main() {
 	mux.Handle("POST /api/v1/delivery/select", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.SelectDeliveryHandler)))
 	mux.Handle("GET /api/v1/delivery/status", authHandler.AuthMiddleware(http.HandlerFunc(deliveryHandler.CheckStatusDeliveryHandler)))
 
-	log.Printf("Сервер слушает на %s", cfg.Port)
-	if err := http.ListenAndServe(cfg.Port, mux); err != nil {
-		fmt.Println("Server error:", err)
+	srv := &http.Server{
+		Addr:              cfg.Port,
+		Handler:           mux,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Ошибка сервера: %v", err)
+		}
+	}()
+	log.Printf("Сервер слушает на %s", cfg.Port)
+
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-stopCtx.Done()
+	log.Println("Получен сигнал остановки, завершаем работу...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Ошибка при принудительной остановке сервера: %v", err)
+	}
+	log.Println("Сервер успешно и плавно остановлен")
 }
