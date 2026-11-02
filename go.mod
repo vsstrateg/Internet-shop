@@ -7,10 +7,14 @@ require (
 	golang.org/x/crypto v0.57.0
 )
 
-require github.com/joho/godotenv v1.5.1
+require (
+	github.com/golang-migrate/migrate/v4 v4.20.1
+	github.com/joho/godotenv v1.5.1
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )

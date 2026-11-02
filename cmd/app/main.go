@@ -34,6 +34,10 @@ func main() {
 	log.Println("Postgres инициализирован")
 	defer db.Close()
 
+	if err := storage.RunMigrations(db); err != nil {
+		log.Fatalf("Ошибка миграции БД: %v", err)
+	}
+
 	// REDIS
 	rdb, err := storage.NewRedisDB(ctx, cfg.Redis)
 	if err != nil {
