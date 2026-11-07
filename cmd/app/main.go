@@ -93,7 +93,7 @@ func main() {
 	<-stopCtx.Done()
 	log.Println("Получен сигнал остановки, завершаем работу...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
