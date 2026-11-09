@@ -8,10 +8,13 @@ import (
 )
 
 var (
+	// ErrInvalidToken указывает, что токен недействителен
 	ErrInvalidToken = errors.New("недействительный токен")
+	// ErrExpiredToken указывает, что срок действия токена истек
 	ErrExpiredToken = errors.New("срок действия токена истек")
 )
 
+// GenerateJWT генерирует JWT токен для указанного email с использованием секретного ключа
 func (a *AuthService) GenerateJWT(email string) (string, error) {
 
 	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -28,6 +31,7 @@ func (a *AuthService) GenerateJWT(email string) (string, error) {
 	return s, nil
 }
 
+// ParseJWT проверяет и извлекает email из JWT токена
 func (a *AuthService) ParseJWT(tokenString string) (string, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

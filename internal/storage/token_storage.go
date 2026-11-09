@@ -10,19 +10,23 @@ import (
 )
 
 var (
-	ErrTokenNotFound = errors.New("Токена не найдено")
+	// ErrTokenNotFound указывает, что токен не найден в хранилище
+	ErrTokenNotFound = errors.New("токен не найден")
 )
 
+// TokenStorage представляет хранилище для токенов пользователей в Redis
 type TokenStorage struct {
 	rdb *redis.Client
 }
 
+// NewTokenStorage создает новый экземпляр TokenStorage
 func NewTokenStorage(rdb *redis.Client) *TokenStorage {
 	return &TokenStorage{
 		rdb: rdb,
 	}
 }
 
+// NewRedisDB создает подключение к базе данных Redis
 func NewRedisDB(ctx context.Context, addr string) (*redis.Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         addr,
@@ -33,17 +37,19 @@ func NewRedisDB(ctx context.Context, addr string) (*redis.Client, error) {
 		MinIdleConns: 10,
 	})
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("ping redis: %w", err)
+		return nil, fmt.Errorf("пинг redis: %w", err)
 	}
 	return rdb, nil
 }
 
+// SaveToken сохраняет токен для пользователя в Redis с указанным ttl
 func (s *TokenStorage) SaveToken(ctx context.Context, email string, token string, ttl time.Duration) error {
 	key := "user:" + email
 
 	return s.rdb.Set(ctx, key, token, ttl).Err()
 }
 
+// GetToken извлекает токен пользователя из Redis по email
 func (s *TokenStorage) GetToken(ctx context.Context, email string) (string, error) {
 	key := "user:" + email
 	val, err := s.rdb.Get(ctx, key).Result()
@@ -56,6 +62,7 @@ func (s *TokenStorage) GetToken(ctx context.Context, email string) (string, erro
 	return val, nil
 }
 
+// IncrementRequests увеличивает счетчик запросов для данного ключа и возвращает текущее количество запросов. Реализация rate limiter.
 func (s *TokenStorage) IncrementRequests(ctx context.Context, key string, ttl time.Duration) (int64, error) {
 	size, err := s.rdb.Incr(ctx, key).Result()
 	if err != nil {

@@ -1,12 +1,14 @@
+// Package config предоставляет функциональность для загрузки конфигурации приложения из переменных окружения или .env файла
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
 )
 
+// Config представляет конфигурацию приложения
 type Config struct {
 	Port      string
 	DBDSN     string
@@ -14,9 +16,10 @@ type Config struct {
 	Redis     string
 }
 
+// LoadConfig загружает конфигурацию из переменных окружения или .env файла
 func LoadConfig() *Config {
 	if err := godotenv.Load(); err != nil {
-		log.Println("Предупреждение: .env файл не найден, читаем переменные системы")
+		slog.Warn(".env файл не найден, читаем переменные системы")
 	}
 	return &Config{
 		Port:      getEnv("SERVER_PORT", ":8080"),

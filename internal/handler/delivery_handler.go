@@ -5,28 +5,46 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 )
 
+// DeliveryService представляет интерфейс для работы с доставкой
 type DeliveryService interface {
 	SelectDelivery(ctx context.Context, email string, orderID int64, carrier string) (string, error)
 	CheckStatusDelivery(ctx context.Context, email string, orderID int64) (string, error)
 }
 
+// DeliveryCred представляет структуру данных для выбора доставки
 type DeliveryCred struct {
 	OrderID int64  `json:"order_id,string"`
 	Carrier string `json:"carrier"`
 }
 
+// SelectDeliveryResponse представляет структуру ответа на запрос выбора доставки
+type SelectDeliveryResponse struct {
+	DeliveryCred
+	Status string `json:"status"`
+}
+
+// DeliveryStatusResponse представляет структуру ответа на запрос проверки статуса доставки
+type DeliveryStatusResponse struct {
+	OrderID int64  `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+// DeliveryHandler предоставляет методы для обработки HTTP-запросов, связанных с доставкой
 type DeliveryHandler struct {
 	delivery DeliveryService
 }
 
+// NewDeliveryHandler создает новый экземпляр DeliveryHandler с указанным сервисом доставки
 func NewDeliveryHandler(delivery DeliveryService) *DeliveryHandler {
 	return &DeliveryHandler{delivery: delivery}
 }
 
+// SelectDeliveryHandler обрабатывает HTTP-запрос на выбор доставки для заказа авторизованного пользователя
 func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	email, ok := r.Context().Value(UserEmailKey).(string)
 	if !ok || email == "" {
@@ -42,9 +60,14 @@ func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.R
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			slog.Error("ошибка закрытия тела запроса", "error", err)
+		}
+	}()
+
 	if err := json.NewDecoder(r.Body).Decode(&delcred); err != nil {
-		sendError(w, http.StatusBadRequest, "Invalid JSON format")
+		sendError(w, http.StatusBadRequest, "Неверный формат JSON")
 		return
 	}
 
@@ -70,16 +93,19 @@ func (d *DeliveryHandler) SelectDeliveryHandler(w http.ResponseWriter, r *http.R
 		sendError(w, http.StatusInternalServerError, "Ошибка оформления доставки")
 		return
 	}
+	resp := SelectDeliveryResponse{
+		DeliveryCred: delcred,
+		Status:       status,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"order_id": delcred.OrderID,
-		"carrier":  delcred.Carrier,
-		"status":   status,
-	})
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Warn("клиент оборвал соединение", "error", err)
+	}
 }
 
+// CheckStatusDeliveryHandler обрабатывает HTTP-запрос на проверку статуса доставки для заказа авторизованного пользователя
 func (d *DeliveryHandler) CheckStatusDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		sendError(w, http.StatusMethodNotAllowed, "Разрешен только метод GET")
@@ -113,10 +139,13 @@ func (d *DeliveryHandler) CheckStatusDeliveryHandler(w http.ResponseWriter, r *h
 		return
 	}
 
+	resp := DeliveryStatusResponse{
+		OrderID: orderID,
+		Status:  status,
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"order_id": orderID,
-		"status":   status,
-	})
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Warn("клиент оборвал соединение", "error", err)
+	}
 }

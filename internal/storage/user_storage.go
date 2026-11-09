@@ -8,24 +8,30 @@ import (
 	"time"
 )
 
+// UserStorage представляет хранилище для информации о пользователях
 type UserStorage struct {
 	db *sql.DB
 }
 
 var (
-	ErrUserAlreadyExists  = errors.New("user already exists")
+	// ErrUserAlreadyExists указывает, что пользователь с таким email уже существует
+	ErrUserAlreadyExists = errors.New("пользователь с таким email уже существует")
+	// ErrInvalidCredentials указывает, что предоставленные учетные данные недействительны
 	ErrInvalidCredentials = errors.New("неверный логин или пароль")
-	ErrDatabase           = errors.New("ошибка базы данных")
+	// ErrDatabase указывает на ошибку базы данных
+	ErrDatabase = errors.New("ошибка базы данных")
 )
 
+// NewUserStorage создает новый экземпляр UserStorage
 func NewUserStorage(db *sql.DB) *UserStorage {
 	return &UserStorage{db: db}
 }
 
+// NewPostgresDB создает подключение к базе данных PostgreSQL
 func NewPostgresDB(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("open pgx: %w", err)
+		return nil, fmt.Errorf("открытие pgx: %w", err)
 	}
 
 	db.SetMaxOpenConns(25)                 // максимум открытых соединений
@@ -33,11 +39,12 @@ func NewPostgresDB(ctx context.Context, dsn string) (*sql.DB, error) {
 	db.SetConnMaxLifetime(5 * time.Minute) // ротация соединений
 
 	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping postgres: %w", err)
+		return nil, fmt.Errorf("пинг postgres: %w", err)
 	}
 	return db, nil
 }
 
+// SaveUser сохраняет нового пользователя в базе данных
 func (s *UserStorage) SaveUser(ctx context.Context, email string, passwordHash []byte) error {
 	query := `INSERT INTO users (email, password) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING`
 	res, err := s.db.ExecContext(ctx, query, email, passwordHash)
@@ -55,6 +62,7 @@ func (s *UserStorage) SaveUser(ctx context.Context, email string, passwordHash [
 	return nil
 }
 
+// GetPasswordHash извлекает хэш пароля пользователя по его email
 func (s *UserStorage) GetPasswordHash(ctx context.Context, email string) (string, error) {
 	var hash string
 

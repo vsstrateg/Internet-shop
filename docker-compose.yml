@@ -15,7 +15,7 @@ services:
       timeout: 2s
       retries: 5
     volumes:
-      - shop_db_data:/var/lib/postgresql/data
+      - shop_db_data:/var/lib/postgresql
 
   redis:
     image: redis:7-alpine

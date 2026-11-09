@@ -7,8 +7,10 @@ import (
 
 type contextKey string
 
+// UserEmailKey используется для хранения email пользователя в контексте запроса
 const UserEmailKey contextKey = "user_email"
 
+// AuthMiddleware проверяет наличие и валидность токена авторизации в cookie запроса.
 func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("auth_token")
@@ -28,6 +30,7 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// UserRateLimitMiddleware проверяет, не превышен ли лимит запросов для пользователя.
 func (h *AuthHandler) UserRateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(UserEmailKey).(string)

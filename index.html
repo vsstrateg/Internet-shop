@@ -277,6 +277,7 @@
         const response = await fetch(`${GATEWAY_URL}${endpoint}`, {
           method,
           headers,
+          credentials: 'include',
           body: body ? JSON.stringify(body) : null
         });
 
@@ -308,13 +309,17 @@
 
       const res = await makeRequest(endpoint, 'POST', { email, password }, 'nodeUser');
       
-      if (res && res.token) {
-        currentToken = res.token;
-        document.getElementById('jwtDisplay').value = currentToken;
+      if (res && (res.token || res.email)) {
+        if (res.token) {
+          currentToken = res.token;
+          document.getElementById('jwtDisplay').value = currentToken;
+        } else {
+          document.getElementById('jwtDisplay').value = 'Токен в HttpOnly Cookie';
+        }
         const statusBadge = document.getElementById('jwtStatus');
         statusBadge.className = 'badge badge-online';
-        statusBadge.innerText = 'JWT: Авторизован';
-        log('Токен успешно сохранен в UI и будет подставляться в заголовки', 'info');
+        statusBadge.innerText = 'Авторизован (Cookie)';
+        log(`Успешный вход для ${res.email || 'пользователя'}. Сессия в защищенной Cookie.`, 'info');
       }
     }
 

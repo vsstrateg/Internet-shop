@@ -1,9 +1,11 @@
+// Package main содержит точку входа для запуска сервера аутентификации и управления заказами
 package main
 
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,31 +25,50 @@ func frontendHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	if err := run(); err != nil {
+		slog.Error("Ошибка при запуске сервера", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 
 	cfg := config.LoadConfig()
 
 	initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	// POSTGRES
 	db, err := storage.NewPostgresDB(initCtx, cfg.DBDSN)
 	if err != nil {
-		log.Fatalf("failed to init postgres: %v", err)
+		return fmt.Errorf("ошибка инициализации Postgres: %w", err)
 	}
-	log.Println("Postgres инициализирован")
-	defer db.Close()
+	slog.Info("Postgres инициализирован")
+	defer func() {
+		if err := db.Close(); err != nil {
+			slog.Error("ошибка закрытия БД", "error", err)
+		}
+	}()
 
 	if err := storage.RunMigrations(db); err != nil {
-		log.Fatalf("Ошибка миграции БД: %v", err)
+		return fmt.Errorf("ошибка миграции БД: %w", err)
 	}
 
 	// REDIS
 	rdb, err := storage.NewRedisDB(initCtx, cfg.Redis)
 	if err != nil {
-		log.Fatalf("failed to init redis: %v", err)
+		return fmt.Errorf("ошибка инициализации Redis: %w", err)
 	}
-	log.Println("Redis инициализирован")
-	defer rdb.Close()
+	slog.Info("Redis инициализирован")
+	defer func() {
+		if err := rdb.Close(); err != nil {
+			slog.Error("ошибка закрытия Redis", "error", err)
+		}
+	}()
+
+	cancel()
 
 	tokenStorage := storage.NewTokenStorage(rdb)
 	userStorage := storage.NewUserStorage(db)
@@ -82,22 +103,24 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Ошибка сервера: %v", err)
+			slog.Error("Ошибка сервера", "error", err)
 		}
 	}()
-	log.Printf("Сервер слушает на %s", cfg.Port)
+	slog.Info("Сервер слушает", "port", cfg.Port)
 
 	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	<-stopCtx.Done()
-	log.Println("Получен сигнал остановки, завершаем работу...")
+	slog.Info("Получен сигнал остановки, завершаем работу...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Ошибка при принудительной остановке сервера: %v", err)
+		slog.Error("Ошибка при принудительной остановке сервера", "error", err)
 	}
-	log.Println("Сервер успешно и плавно остановлен")
+	slog.Info("Сервер успешно и плавно остановлен")
+
+	return nil
 }
