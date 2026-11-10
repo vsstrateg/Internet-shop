@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"auth-service/internal/storage"
 )
@@ -59,6 +60,7 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		sendError(w, http.StatusBadRequest, "Неверный формат JSON")
 		return
 	}
+	cred.Email = strings.TrimSpace(strings.ToLower(cred.Email))
 
 	if len(cred.Email) < 8 || len(cred.Password) < 8 {
 		sendError(w, http.StatusBadRequest, "Длина пароля или почты меньше 8 символов")
@@ -97,6 +99,7 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		sendError(w, http.StatusBadRequest, "Неверный формат JSON")
 		return
 	}
+	cred.Email = strings.TrimSpace(strings.ToLower(cred.Email))
 
 	if len(cred.Email) < 8 || len(cred.Password) < 8 {
 		sendError(w, http.StatusBadRequest, "Длина пароля или почты меньше 8 символов")
